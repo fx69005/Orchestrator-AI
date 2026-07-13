@@ -788,7 +788,7 @@ une branche de refus, de validation humaine ou de contrôle d'accès.
 
 ## 5.9 — Définir le contrat d'état du futur graphe
 
-Statut : validé pour le routage minimal.
+Statut : validé.
 
 Avant d'écrire les nœuds, nous devons savoir quelles données circulent entre eux.
 Pour notre verticale actuelle, le contrat minimal peut être décrit ainsi :
@@ -811,8 +811,8 @@ Le futur graphe devra donc avoir au minimum :
 - une condition qui dirige vers `conversation` ou `calculation` ;
 - une sortie qui retourne l'état final.
 
-La prochaine étape sera d'écrire ce contrat avec les vrais types LangGraph du projet,
-puis de construire un graphe minimal sans supprimer l'agent pédagogique existant.
+Le contrat a été écrit avec les types LangGraph du projet et le graphe a été construit
+sans supprimer l'agent pédagogique existant.
 
 ### Implémentation 5.9 — Premier graphe explicite
 
@@ -830,10 +830,15 @@ START → route_request
           └── calculation  → END
 ```
 
-Les deux nœuds de branche écrivent uniquement `executedBranch`. Ils ne répondent
-pas encore avec le modèle et n'exécutent pas `add_numbers`. Cette restriction est
-volontaire : elle permet d'observer le routage explicite avant de connecter une
-branche à un agent ou à un outil.
+Les deux nœuds de branche exécutent maintenant un agent spécialisé :
+
+- `conversation` appelle un agent configuré sans outil ;
+- `calculation` appelle un agent configuré avec `add_numbers` ;
+- les nouveaux messages produits par la branche sont réinjectés dans l'état du graphe.
+
+La mémoire est portée par le `MemorySaver` du graphe explicite. Les agents spécialisés
+n'ont pas leur propre checkpointer : le graphe reste le propriétaire de l'état et du
+thread.
 
 Le graphe est exposé dans `langgraph.json` sous l'identifiant `routingGraph`, sans
 modifier le graphe existant `agent`.
@@ -844,8 +849,41 @@ Vérifications réalisées :
 - la compilation TypeScript passe ;
 - le lint passe ;
 - le serveur LangGraph enregistre `agent` et `routingGraph` ;
+- une invocation conversationnelle retourne une réponse sans appel d'outil ;
 - une invocation de `routingGraph` avec `Calcule 12 + 30.` retourne
-  `requestRoute = calculation` et `executedBranch = calculation`.
+  `requestRoute = calculation`, `executedBranch = calculation`, appelle
+  `add_numbers` et retourne `42`.
 
-Le prochain point consistera à donner un vrai traitement à une branche, en conservant
-la séparation entre le choix du chemin et l'exécution du composant sélectionné.
+Le graphe explicite est maintenant utilisable en mode chat. L'agent `agent` reste
+disponible séparément comme référence de la version préconstruite.
+
+## 5.10 — Vérifier la mémoire du graphe explicite
+
+Statut : validé.
+
+Le graphe possède désormais son propre checkpointer. Il faut vérifier que le même
+thread conserve les messages entre deux runs, tandis qu'un nouveau thread repart sans
+le contexte précédent.
+
+Expérience dans Studio avec `routingGraph` :
+
+1. créer un nouveau thread ;
+2. envoyer `Je m'appelle Alice.` ;
+3. dans le même thread, envoyer `Quel est mon prénom ?` ;
+4. créer un autre thread ;
+5. envoyer la même question dans ce nouveau thread.
+
+Résultat attendu : le deuxième run du premier thread peut utiliser le contexte
+contenant `Alice`, tandis que le nouveau thread ne le possède pas.
+
+### Validation 5.10
+
+La validation serveur a confirmé :
+
+- dans le même thread, le deuxième run répond que le prénom est `Alice` ;
+- ce thread contient 4 messages après les deux tours ;
+- dans un nouveau thread, la réponse indique que le prénom est inconnu.
+
+Le `MemorySaver` du graphe explicite conserve donc l'état par `thread_id`. Les
+branches spécialisées peuvent réutiliser cet état sans posséder chacune leur propre
+mémoire.
