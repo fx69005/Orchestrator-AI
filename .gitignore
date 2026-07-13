@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+
+# LangGraph API
+.langgraph_api
