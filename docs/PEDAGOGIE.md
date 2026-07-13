@@ -939,7 +939,7 @@ deux messages partageant le même `threadId`, puis comparer avec un autre
 
 ## Point 7 — Activer et comprendre le tracing LangSmith
 
-Statut : en cours.
+Statut : tracing validé ; évaluation à étudier.
 
 Objectif : observer une exécution réelle sans confondre observabilité et mémoire.
 
@@ -989,3 +989,47 @@ Question de validation : si la trace LangSmith est supprimée, la mémoire du m�
 
 Réponse attendue : non. La trace est une information d'observabilité ; le checkpoint
 du thread est une donnée d'état distincte.
+
+### Validation 7.1
+
+Le tracing est validé dans le parcours local : les appels NestJS peuvent être
+retrouvés dans le projet LangSmith configuré, avec les étapes du modèle et de l'outil.
+
+## 7.2 — Comprendre l'évaluation
+
+Statut : à étudier.
+
+Une trace répond à la question :
+
+```text
+Qu'a fait le système ?
+```
+
+Une évaluation répond à une autre question :
+
+```text
+Le système a-t-il respecté le résultat ou le chemin attendu ?
+```
+
+Pour notre verticale, un premier jeu d'évaluation peut vérifier :
+
+| Entrée | Route attendue | Outil attendu | Critère de résultat |
+| --- | --- | --- | --- |
+| `Bonjour` | `conversation` | aucun | réponse conversationnelle |
+| `Calcule 12 + 30.` | `calculation` | `add_numbers` | résultat `42` |
+| `Quel est mon prénom ?` dans un nouveau thread | `conversation` | aucun | ne pas inventer de prénom |
+
+L'évaluation ne doit pas se limiter au texte final. Elle peut vérifier plusieurs
+dimensions :
+
+- la route calculée ;
+- la présence ou l'absence d'un appel d'outil ;
+- la validité des arguments de l'outil ;
+- le résultat final ;
+- l'absence de fuite de contexte entre deux threads.
+
+### Exercice 7.2
+
+Pour chacune des trois entrées du tableau, définir une assertion vérifiable dans une
+trace. L'objectif est de distinguer une réponse simplement plausible d'une exécution
+qui respecte réellement le contrat de l'orchestrateur.
