@@ -19,7 +19,7 @@ Le projet commence volontairement par une seule verticale fonctionnelle : un age
 - [x] 1. Comprendre les rôles d’un agent, d’un orchestrateur, de LangChain et de LangGraph Studio.
 - [ ] 2. Comprendre l’état d’exécution et le cycle d’un agent LangChain.
 - [x] 3. Ajouter une mémoire interne de conversation.
-- [ ] 4. Ajouter un premier outil contrôlé.
+- [x] 4. Ajouter un premier outil contrôlé.
 - [ ] 5. Ajouter des décisions conditionnelles et des boucles.
 - [ ] 6. Intégrer proprement l’agent dans NestJS.
 - [ ] 7. Activer puis étudier le tracing et l’évaluation avec LangSmith.
@@ -212,6 +212,81 @@ Le test est réussi :
 - la mémoire est isolée par `thread_id`.
 
 Le point 3 est terminé. Le prochain objectif est d’ajouter un outil simple et contrôlé afin d’observer le cycle `agent → outil → agent`.
+
+### Configurable, context et metadata
+
+`configurable` n’est pas une mémoire en soi. C’est la zone de configuration runtime prévue par LangGraph.
+
+- `configurable.thread_id` : identifie la conversation utilisée par le checkpointer ; c’est le choix actuel pour notre mémoire interne.
+- `configurable.checkpoint_id` : permet de cibler un checkpoint précis ; usage avancé pour l’historique et le time travel.
+- `context` : transporte des données de la requête comme `userId`, `tenantId` ou `locale` ; ces données ne remplacent pas l’état persistant de la conversation.
+- `metadata` et `tags` : enrichissent les traces LangSmith ; ils servent à l’observabilité, pas à fournir l’historique au modèle.
+
+Notre application peut utiliser un nom métier comme `conversationId`, mais elle devra le mapper vers `configurable.thread_id` pour que le checkpointer LangGraph retrouve l’état.
+
+## Point 4 — Premier outil contrôlé
+
+Statut : validé.
+
+Un outil possède quatre éléments :
+
+- un nom stable (`add_numbers`) ;
+- une description que le modèle peut comprendre ;
+- un schéma d’entrée validé avec Zod ;
+- une fonction TypeScript qui exécute réellement l’action.
+
+Notre premier outil additionne deux nombres. Il est volontairement local, déterministe et sans effet externe.
+
+Le cycle attendu est :
+
+```text
+message utilisateur
+        ↓
+agent décide d’utiliser add_numbers
+        ↓
+LangChain valide left et right
+        ↓
+TypeScript calcule le résultat
+        ↓
+agent formule la réponse finale
+```
+
+Vérifications techniques :
+
+- `math.tool.spec.ts` teste l’outil directement, sans modèle ni réseau ;
+- compilation TypeScript réussie ;
+- 2 suites de tests réussies ;
+- lint réussi ;
+- serveur LangGraph démarré avec le graphe contenant l’outil.
+
+Prochaine activité : invoquer l’agent dans Studio avec une addition et observer l’appel de l’outil dans la trace.
+
+### Validation 4.1
+
+Le test Studio est réussi :
+
+- l’agent décide d’appeler `add_numbers` ;
+- les arguments sont transmis selon le schéma Zod ;
+- la fonction TypeScript calcule le résultat ;
+- le résultat de l’outil est réinjecté dans le cycle de l’agent ;
+- l’agent produit la réponse finale.
+
+Le point 4 est terminé. Le prochain objectif est d’introduire un routage conditionnel et de comprendre quand l’agent s’arrête ou poursuit son cycle.
+
+### Le prompt impose-t-il l’utilisation de l’outil ?
+
+Non. La phrase `Pour toute addition, utilise toujours l’outil add_numbers` est une consigne souple destinée à guider le modèle et à rendre la démonstration reproductible.
+
+L’agent connaît déjà l’outil grâce à :
+
+- son nom ;
+- sa description ;
+- son schéma Zod ;
+- sa présence dans la liste `tools`.
+
+Sans cette phrase, le modèle peut choisir d’appeler l’outil, mais il peut aussi calculer directement la réponse. Le prompt ne constitue donc pas une garantie technique.
+
+Pour garantir l’utilisation d’un outil, il faudra plus tard utiliser une règle d’orchestration explicite, un middleware, une validation du résultat ou un graphe conditionnel. Pour une action sensible ou avec effet externe, il ne faudra pas dépendre uniquement du prompt.
 
 ## Méthode de travail
 

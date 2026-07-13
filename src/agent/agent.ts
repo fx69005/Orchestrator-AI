@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { createAgent } from 'langchain';
 import { MemorySaver } from '@langchain/langgraph';
+import { addNumbersTool } from './tools/math.tool';
 
 const model = new ChatOpenAI({
   model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
@@ -23,8 +24,8 @@ export const internalMemory = new MemorySaver();
  */
 export const agent = createAgent({
   model,
-  tools: [],
+  tools: [addNumbersTool],
   checkpointer: internalMemory,
   systemPrompt:
-    'Tu es un agent orchestrateur pédagogique. Réponds clairement et explique ton raisonnement de façon concise.',
+    'Tu es un agent orchestrateur pédagogique. Réponds clairement et explique ton raisonnement de façon concise. Pour toute addition, utilise toujours l’outil add_numbers.',
 });
