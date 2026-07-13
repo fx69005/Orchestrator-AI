@@ -7,6 +7,8 @@ Projet pédagogique pour construire progressivement un orchestrateur d’agents 
 - LangGraph CLI et Studio pour lancer et observer l’agent ;
 - LangSmith pour le tracing, activable progressivement.
 
+Le suivi détaillé du parcours se trouve dans [`docs/PEDAGOGIE.md`](docs/PEDAGOGIE.md).
+
 ## Installation
 
 ```bash

@@ -1,10 +1,19 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { createAgent } from 'langchain';
+import { MemorySaver } from '@langchain/langgraph';
 
 const model = new ChatOpenAI({
   model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
   temperature: 0,
 });
+
+/**
+ * In-memory short-term memory.
+ *
+ * The thread_id supplied at invocation time identifies the conversation.
+ * This memory is intentionally lost when the process restarts.
+ */
+export const internalMemory = new MemorySaver();
 
 /**
  * First learning agent.
@@ -15,6 +24,7 @@ const model = new ChatOpenAI({
 export const agent = createAgent({
   model,
   tools: [],
+  checkpointer: internalMemory,
   systemPrompt:
     'Tu es un agent orchestrateur pédagogique. Réponds clairement et explique ton raisonnement de façon concise.',
 });
