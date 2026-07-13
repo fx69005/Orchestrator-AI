@@ -1,3 +1,4 @@
+import { Client } from 'langsmith';
 import { evaluate } from 'langsmith/evaluation';
 import {
   AgentRunLike,
@@ -12,6 +13,7 @@ type EvaluationInput = {
 
 const datasetName =
   process.env.LANGSMITH_DATASET_NAME ?? 'orchestrator-ai-contract-v1';
+const datasetSplit = process.env.LANGSMITH_DATASET_SPLIT ?? 'test';
 const baseUrl = process.env.AGENT_EVAL_BASE_URL ?? 'http://localhost:3000';
 
 async function target(inputs: EvaluationInput) {
@@ -58,15 +60,34 @@ function contractEvaluator({
 }
 
 async function main() {
+  const client = new Client();
+  const examples = [];
+
+  for await (const example of client.listExamples({
+    datasetName,
+    splits: [datasetSplit],
+  })) {
+    examples.push(example);
+  }
+
+  if (examples.length === 0) {
+    throw new Error(
+      `No examples found in dataset "${datasetName}" with split "${datasetSplit}".`,
+    );
+  }
+
   const experiment = await evaluate(target, {
-    data: datasetName,
+    data: examples,
     evaluators: [contractEvaluator],
     experimentPrefix: 'orchestrator-ai-contract',
     description: 'Evaluation du contrat route-outil-réponse de l’agent.',
     maxConcurrency: 1,
+    client,
   });
 
-  console.log(`Experiment completed for dataset: ${datasetName}`);
+  console.log(
+    `Experiment completed for dataset: ${datasetName} (${datasetSplit})`,
+  );
   console.log(experiment);
 }
 

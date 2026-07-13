@@ -1127,15 +1127,17 @@ npm run eval:langsmith
 Le runner :
 
 1. charge le dataset indiqué par `LANGSMITH_DATASET_NAME` ;
-2. envoie chaque `input` à `POST /agent/invoke` ;
-3. applique `evaluateAgentRun()` aux `Reference Outputs` ;
-4. publie un experiment LangSmith avec le score `contract`.
+2. sélectionne uniquement le split indiqué par `LANGSMITH_DATASET_SPLIT` ;
+3. envoie chaque `input` à `POST /agent/invoke` ;
+4. applique `evaluateAgentRun()` aux `Reference Outputs` ;
+5. publie un experiment LangSmith avec le score `contract`.
 
 Prérequis :
 
 - NestJS doit tourner sur `http://localhost:3000` ;
 - `LANGSMITH_TRACING=true` et `LANGSMITH_API_KEY` doivent être renseignés ;
 - `LANGSMITH_DATASET_NAME` doit correspondre au nom du dataset créé dans LangSmith.
+- `LANGSMITH_DATASET_SPLIT=test` sélectionne les exemples du split `test`.
 
 Dans Bash, les variables du `.env` peuvent être exportées avant le lancement :
 
