@@ -1115,3 +1115,36 @@ attentes, alors que le `MemorySaver` contient l'état d'une conversation réelle
 Nous ne créons pas encore ce dataset dans un workspace externe. La prochaine étape
 sera de choisir entre une collection locale versionnée et un dataset LangSmith, puis
 de comparer les exécutions réelles à ces attentes.
+
+### Implémentation 7.3 — Runner local vers LangSmith
+
+Le projet contient maintenant `scripts/run-langsmith-eval.ts` et la commande :
+
+```bash
+npm run eval:langsmith
+```
+
+Le runner :
+
+1. charge le dataset indiqué par `LANGSMITH_DATASET_NAME` ;
+2. envoie chaque `input` à `POST /agent/invoke` ;
+3. applique `evaluateAgentRun()` aux `Reference Outputs` ;
+4. publie un experiment LangSmith avec le score `contract`.
+
+Prérequis :
+
+- NestJS doit tourner sur `http://localhost:3000` ;
+- `LANGSMITH_TRACING=true` et `LANGSMITH_API_KEY` doivent être renseignés ;
+- `LANGSMITH_DATASET_NAME` doit correspondre au nom du dataset créé dans LangSmith.
+
+Dans Bash, les variables du `.env` peuvent être exportées avant le lancement :
+
+```bash
+set -a
+source .env
+set +a
+npm run eval:langsmith
+```
+
+Le runner ne crée pas de dataset et ne modifie pas l'agent. Il crée uniquement un
+experiment d'évaluation associé au dataset existant.
