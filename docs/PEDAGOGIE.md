@@ -1064,3 +1064,54 @@ Vérifications réalisées :
 Le prochain approfondissement consistera à comparer plusieurs exécutions réelles et
 à stocker leurs exemples attendus dans un dataset d'évaluation, sans confondre ce
 dataset avec la mémoire des threads.
+
+## 7.3 — Préparer un dataset d'évaluation
+
+Statut : à préparer.
+
+Un dataset regroupe des exemples reproductibles. Chaque exemple décrit une entrée et
+les propriétés attendues de l'exécution :
+
+```ts
+type EvaluationExample = {
+  id: string;
+  input: {
+    message: string;
+    threadId: string;
+  };
+  expected: {
+    route: 'conversation' | 'calculation';
+    toolName?: string;
+    answerIncludes?: string[];
+    answerExcludes?: string[];
+  };
+};
+```
+
+Notre premier dataset pédagogique contiendra au minimum :
+
+```text
+conversation-simple
+  entrée : Bonjour
+  route  : conversation
+  outil  : aucun
+
+calculation-addition
+  entrée : Calcule 12 + 30.
+  route  : calculation
+  outil  : add_numbers
+  résultat attendu : 42
+
+thread-isolation
+  entrée : Quel est mon prénom ? dans un nouveau thread
+  route  : conversation
+  outil  : aucun
+  contrainte : ne pas mentionner Alice sans contexte
+```
+
+Le dataset n'est pas la mémoire de l'agent : il contient des cas de test et des
+attentes, alors que le `MemorySaver` contient l'état d'une conversation réelle.
+
+Nous ne créons pas encore ce dataset dans un workspace externe. La prochaine étape
+sera de choisir entre une collection locale versionnée et un dataset LangSmith, puis
+de comparer les exécutions réelles à ces attentes.
