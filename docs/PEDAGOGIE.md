@@ -553,3 +553,263 @@ Références utilisées :
 
 - [Messages LangChain](https://docs.langchain.com/oss/javascript/langchain/messages) ;
 - [Custom middleware LangChain](https://docs.langchain.com/oss/javascript/langchain/middleware/custom).
+
+## Suite du point 5 — 5.6 Utiliser la route pour sélectionner les outils
+
+Statut : validé côté code et tests unitaires ; validation Studio à réaliser.
+
+Jusqu’ici, `requestRoute` était uniquement écrit dans l’état. La décision était
+observable, mais elle ne modifiait pas encore l’exécution. Le middleware utilise
+maintenant cette valeur dans `wrapModelCall` pour sélectionner les outils exposés
+au modèle :
+
+```text
+requestRoute = conversation  → aucun outil
+requestRoute = calculation   → add_numbers
+```
+
+La sélection est portée par `selectToolsForRoute()`, une fonction déterministe et
+testable indépendamment du modèle. Le modèle reste dans la boucle interne de
+`createAgent()` ; nous n’avons donc pas encore créé deux nœuds LangGraph distincts.
+
+Cette étape enseigne une forme de branchement à l’intérieur d’un agent préconstruit :
+la route ne choisit pas encore un nœud, elle contrôle les capacités disponibles pour
+le prochain appel du modèle. La documentation LangChain décrit ce mécanisme comme
+une sélection dynamique des outils via `wrapModelCall`, en utilisant l’état de la
+requête.
+
+### Vérifications techniques de 5.6
+
+- `selectToolsForRoute('conversation')` retourne une liste vide ;
+- `selectToolsForRoute('calculation')` retourne uniquement `add_numbers` ;
+- compilation TypeScript réussie ;
+- 3 suites de tests réussies ;
+- 8 tests réussis au total ;
+- lint réussi après correction du formatage Prettier.
+
+### Expérience 5.6 — Observer la capacité disponible
+
+Après redémarrage de `npm run langgraph:dev`, utiliser deux nouveaux threads dans
+Studio :
+
+1. envoyer `Bonjour, explique-moi ton rôle.` dans le thread `A` ;
+2. vérifier que `requestRoute` vaut `conversation` et qu’aucun appel d’outil n’est
+   nécessaire ;
+3. envoyer `Calcule 12 + 30.` dans le thread `B` ;
+4. vérifier que `requestRoute` vaut `calculation`, que `add_numbers` est disponible,
+   puis que la trace contient l’appel de l’outil et la réponse finale.
+
+Point important : cette protection dépend encore de la qualité de `routeRequest()`.
+Une demande comme `Combien font 12 et 30 ?` peut rester classée
+`conversation`, car notre classifieur est volontairement basé sur quelques marqueurs.
+Le prochain exercice pourra améliorer cette règle ou introduire une classification
+structurée, mais il ne faudra pas confondre cette amélioration avec un graphe
+LangGraph explicite.
+
+### Ce que cette étape ne fait pas encore
+
+- elle ne crée pas deux nœuds nommés `conversation` et `calculation` ;
+- elle ne garantit pas qu’une demande mal classée sera recalculée ;
+- elle ne remplace pas une politique de sécurité pour des outils sensibles ;
+- elle ne transforme pas `createAgent()` en `StateGraph` explicite.
+
+Les arêtes conditionnelles et les points d’entrée conditionnels appartiennent à la
+prochaine couche d’orchestration explicite. LangGraph les fournit via
+`addConditionalEdges()` ; cette évolution reste planifiée au point 8.
+
+Référence officielle complémentaire : [Custom middleware — sélection dynamique des
+outils](https://docs.langchain.com/oss/javascript/langchain/middleware/custom) et
+[Graph API — arêtes conditionnelles](https://docs.langchain.com/oss/javascript/langgraph/graph-api).
+
+### Validation 5.6 — Invocation serveur locale
+
+La validation a été réalisée après redémarrage de `npm run langgraph:dev` :
+
+- `GET http://localhost:2024/ok` retourne `200` et `{"ok":true}` ;
+- une invocation avec `Calcule 12 + 30.` retourne `requestRoute = calculation` ;
+- la trace contient l'appel `add_numbers` avec `left = 12` et `right = 30` ;
+- le résultat de l'outil est `12 + 30 = 42`, puis l'agent répond avec le résultat final ;
+- une invocation avec `Bonjour, explique-moi ton rôle.` retourne
+  `requestRoute = conversation` et ne contient aucun appel d'outil.
+
+Conclusion : le routage influence bien les outils exposés au modèle. Il ne crée pas
+encore deux chemins d'exécution indépendants et il ne garantit pas qu'une demande
+mal classée sera corrigée automatiquement.
+
+## 5.7 — Comprendre la limite du routeur déterministe
+
+Statut : en cours — reconnaissance des expressions arithmétiques simples validée.
+
+Notre règle reconnaît des marqueurs comme `calcule`, `additionne` et `somme`.
+Elle ne comprend pas encore toutes les formulations équivalentes. Par exemple :
+
+```text
+Combien font 12 et 30 ?
+```
+
+Cette demande risque d'être classée `conversation`. Le modèle recevra alors zéro
+outil et pourra malgré tout calculer directement dans sa réponse. Le résultat peut
+être correct, mais le contrat de calcul contrôlé n'aura pas été respecté.
+
+Cette distinction est essentielle :
+
+```text
+outil absent       ≠       calcul interdit
+route calcul       ≠       garantie absolue d'utilisation de l'outil
+```
+
+### Expérience 5.7
+
+Dans un nouveau thread, comparer les deux demandes suivantes :
+
+1. `Additionne 12 et 30.` ;
+2. `Combien font 12 et 30 ?`.
+
+Observer pour chacune :
+
+- la valeur de `requestRoute` ;
+- la présence ou l'absence de `add_numbers` dans la trace ;
+- la manière dont l'agent obtient sa réponse.
+
+Question de validation : si les deux réponses affichent `42`, peut-on conclure que
+le système a suivi le même contrat d'exécution ?
+
+Réponse attendue : non. La valeur finale ne suffit pas à prouver le chemin suivi.
+Pour une action contrôlée, il faut observer l'état, les appels d'outils et les
+résultats intermédiaires, pas seulement le texte final.
+
+La prochaine modification pourra améliorer la classification déterministe pour
+reconnaître les expressions arithmétiques simples. Elle devra être accompagnée de
+tests de régression, car une règle de routage incorrecte modifie directement les
+capacités disponibles pour le modèle.
+
+### Implémentation 5.7 — Expression arithmétique explicite
+
+Le routeur reconnaît maintenant, en plus des marqueurs précédents, une expression
+d'addition composée de deux nombres reliés par `+` ou `plus` :
+
+```text
+12 + 30       → calculation
+12 plus 30    → calculation
+```
+
+Cette règle reste volontairement limitée. Elle ne reconnaît pas encore les nombres
+écrits en toutes lettres, les soustractions ou les formulations mathématiques
+complexes. Cette limite est cohérente avec l'outil actuellement disponible, qui ne
+réalise que des additions.
+
+Vérifications réalisées :
+
+- les deux nouveaux cas sont couverts par `request-router.spec.ts` ;
+- 3 suites de tests passent, soit 10 tests ;
+- la compilation TypeScript passe ;
+- le lint passe ;
+- une invocation serveur de `Combien font 12 + 30 ?` produit
+  `requestRoute = calculation`, appelle `add_numbers` et retourne `42`.
+
+La formulation `Combien font 12 et 30 ?` reste volontairement un cas limite : elle
+n'est pas encore reconnue par cette règle et permet d'étudier les faux négatifs du
+routeur.
+
+## 5.8 — Middleware de routage versus graphe explicite
+
+Statut : à étudier.
+
+Notre architecture actuelle utilise toujours un agent préconstruit par
+`createAgent()`. Le middleware intervient dans cette boucle pour calculer une route
+et filtrer les outils du prochain appel du modèle :
+
+```text
+entrée
+  ↓
+createAgent()
+  ├── modèle sans outil si route = conversation
+  ├── modèle avec add_numbers si route = calculation
+  └── boucle modèle → outil → modèle si nécessaire
+  ↓
+réponse finale
+```
+
+La route est donc une donnée de l'état et une règle de sélection des capacités. Elle
+ne constitue pas encore un nœud nommé `conversation` ou `calculation`.
+
+Dans un graphe LangGraph explicite, le routeur choisirait directement le prochain
+nœud :
+
+```text
+entrée
+  ↓
+routeur
+  ├── conversationNode
+  │     ↓
+  │   fin
+  └── calculationNode
+        ↓
+      fin
+```
+
+La différence principale est le niveau de contrôle :
+
+- `createAgent()` fournit une boucle modèle-outils pratique et préconstruite ;
+- un graphe explicite nomme les nœuds, les transitions et les conditions ;
+- le middleware modifie le comportement d'un appel du modèle ;
+- une arête conditionnelle choisit le prochain composant du graphe.
+
+### Exercice 5.8
+
+Pour chacune des demandes suivantes, identifier le composant qui devrait décider du
+chemin dans une architecture explicite :
+
+1. `Bonjour, explique ton rôle.` ;
+2. `Calcule 12 + 30.` ;
+3. `Je veux consulter mon solde bancaire.`.
+
+Réflexion attendue : le premier cas peut rester dans une branche conversationnelle,
+le deuxième dans une branche de calcul, et le troisième nécessiterait une politique
+et un outil sensibles. Cette dernière demande montre pourquoi les routes, les outils
+et les contrôles de sécurité ne doivent pas dépendre uniquement d'un prompt.
+
+Cette étape est encore conceptuelle. Avant de construire un `StateGraph`, il faut
+définir précisément l'état partagé, les entrées et sorties de chaque nœud, ainsi que
+la condition qui relie le routeur aux branches.
+
+### Correction de l'exercice 5.8
+
+Les chemins attendus sont :
+
+1. `Bonjour, explique ton rôle.` → branche `conversation` ;
+2. `Calcule 12 + 30.` → branche `calculation` ;
+3. `Je veux consulter mon solde bancaire.` → cas sensible hors périmètre, qui ne
+   doit pas recevoir un outil bancaire par défaut.
+
+Le troisième cas ne doit pas nous pousser à ajouter immédiatement une nouvelle
+fonctionnalité. Il sert à montrer qu'un graphe explicite pourra plus tard contenir
+une branche de refus, de validation humaine ou de contrôle d'accès.
+
+## 5.9 — Définir le contrat d'état du futur graphe
+
+Statut : à concevoir.
+
+Avant d'écrire les nœuds, nous devons savoir quelles données circulent entre eux.
+Pour notre verticale actuelle, le contrat minimal peut être décrit ainsi :
+
+```ts
+type OrchestratorState = {
+  messages: Message[];
+  requestRoute: 'conversation' | 'calculation';
+};
+```
+
+Le routeur lit le dernier message et écrit `requestRoute`. La branche suivante lit
+cette valeur pour savoir quel traitement appliquer. Les messages restent dans l'état
+afin que le modèle et les outils puissent conserver le contexte du run.
+
+Le futur graphe devra donc avoir au minimum :
+
+- un point d'entrée qui reçoit `messages` ;
+- un nœud de routage qui écrit `requestRoute` ;
+- une condition qui dirige vers `conversation` ou `calculation` ;
+- une sortie qui retourne l'état final.
+
+La prochaine étape sera d'écrire ce contrat avec les vrais types LangGraph du projet,
+puis de construire un graphe minimal sans supprimer l'agent pédagogique existant.

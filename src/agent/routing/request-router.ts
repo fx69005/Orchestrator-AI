@@ -2,6 +2,7 @@ export type RequestRoute = 'conversation' | 'calculation';
 
 const calculationPattern =
   /\b(calcul(?:e|er|ez|ons)?|addition(?:ne|ner|nez|nons)?|somme)\b/i;
+const arithmeticExpressionPattern = /\b\d+\s*(?:\+|plus)\s*\d+\b/i;
 
 export function extractMessageText(content: unknown): string {
   if (typeof content === 'string') {
@@ -41,5 +42,8 @@ export function extractMessageText(content: unknown): string {
  * learning step, not a general natural-language classifier.
  */
 export function routeRequest(message: string): RequestRoute {
-  return calculationPattern.test(message) ? 'calculation' : 'conversation';
+  return calculationPattern.test(message) ||
+    arithmeticExpressionPattern.test(message)
+    ? 'calculation'
+    : 'conversation';
 }
