@@ -788,7 +788,7 @@ une branche de refus, de validation humaine ou de contrôle d'accès.
 
 ## 5.9 — Définir le contrat d'état du futur graphe
 
-Statut : à concevoir.
+Statut : validé pour le routage minimal.
 
 Avant d'écrire les nœuds, nous devons savoir quelles données circulent entre eux.
 Pour notre verticale actuelle, le contrat minimal peut être décrit ainsi :
@@ -813,3 +813,39 @@ Le futur graphe devra donc avoir au minimum :
 
 La prochaine étape sera d'écrire ce contrat avec les vrais types LangGraph du projet,
 puis de construire un graphe minimal sans supprimer l'agent pédagogique existant.
+
+### Implémentation 5.9 — Premier graphe explicite
+
+Le graphe `routingGraph` a été ajouté séparément de l'agent `agent`. Il contient :
+
+- l'état `routingState` avec `messages`, `requestRoute` et `executedBranch` ;
+- le nœud `route_request`, qui lit le dernier message et écrit `requestRoute` ;
+- les nœuds `conversation` et `calculation` ;
+- une arête conditionnelle créée avec `addConditionalEdges()` ;
+- une fin de graphe après chaque branche.
+
+```text
+START → route_request
+          ├── conversation → END
+          └── calculation  → END
+```
+
+Les deux nœuds de branche écrivent uniquement `executedBranch`. Ils ne répondent
+pas encore avec le modèle et n'exécutent pas `add_numbers`. Cette restriction est
+volontaire : elle permet d'observer le routage explicite avant de connecter une
+branche à un agent ou à un outil.
+
+Le graphe est exposé dans `langgraph.json` sous l'identifiant `routingGraph`, sans
+modifier le graphe existant `agent`.
+
+Vérifications réalisées :
+
+- 4 suites de tests passent, soit 12 tests ;
+- la compilation TypeScript passe ;
+- le lint passe ;
+- le serveur LangGraph enregistre `agent` et `routingGraph` ;
+- une invocation de `routingGraph` avec `Calcule 12 + 30.` retourne
+  `requestRoute = calculation` et `executedBranch = calculation`.
+
+Le prochain point consistera à donner un vrai traitement à une branche, en conservant
+la séparation entre le choix du chemin et l'exécution du composant sélectionné.
