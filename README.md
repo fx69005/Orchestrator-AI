@@ -38,7 +38,10 @@ Le tracing est désactivé par défaut. Pour l’activer localement, renseigner 
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=...
 LANGSMITH_PROJECT=orchestrator-ai
+LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com
 ```
+
+L’endpoint doit correspondre à la région du workspace LangSmith. Pour ce projet, le workspace utilisé répond sur l’endpoint EU.
 
 ## Vérifications
 
@@ -49,4 +52,3 @@ npm run lint
 ```
 
 L’agent initial est volontairement créé avec `createAgent()` et aucun outil. Les nœuds LangGraph explicites seront introduits lorsque nous aurons besoin de contrôler précisément le routage.
-
