@@ -1033,3 +1033,34 @@ dimensions :
 Pour chacune des trois entrées du tableau, définir une assertion vérifiable dans une
 trace. L'objectif est de distinguer une réponse simplement plausible d'une exécution
 qui respecte réellement le contrat de l'orchestrateur.
+
+### Implémentation 7.2 — Évaluateur local du contrat
+
+La première évaluation est implémentée sans appel OpenAI ni dépendance à l'interface
+LangSmith. `evaluateAgentRun()` vérifie trois dimensions :
+
+- la route observée correspond à la route attendue ;
+- l'outil attendu est présent, ou aucun outil n'est appelé lorsqu'il ne devrait pas
+  l'être ;
+- la réponse finale contient ou n'expose pas les éléments attendus.
+
+Les tests couvrent quatre situations :
+
+1. conversation sans outil ;
+2. calcul avec `add_numbers` et résultat `42` ;
+3. réponse `42` mais mauvais chemin d'exécution ;
+4. nouveau thread qui ne révèle pas le prénom `Alice`.
+
+Le résultat d'évaluation expose `passed`, les contrôles détaillés et les éléments
+observés. Cette forme pourra ensuite être adaptée à un dataset LangSmith, mais elle
+reste d'abord exécutable localement et reproductible.
+
+Vérifications réalisées :
+
+- 6 suites de tests passent, soit 20 tests ;
+- la compilation TypeScript passe ;
+- le lint passe.
+
+Le prochain approfondissement consistera à comparer plusieurs exécutions réelles et
+à stocker leurs exemples attendus dans un dataset d'évaluation, sans confondre ce
+dataset avec la mémoire des threads.
