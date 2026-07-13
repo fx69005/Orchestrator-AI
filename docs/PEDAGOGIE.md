@@ -903,7 +903,7 @@ test mieux préparé.
 
 ## Point 6 — Intégrer proprement l'agent dans NestJS
 
-Statut : en cours.
+Statut : validé côté code et tests ; expérience HTTP manuelle à poursuivre.
 
 `AgentService` existait déjà comme adaptateur interne. Il est maintenant exposé par
 `AgentController` avec la route :
@@ -936,3 +936,56 @@ Vérifications réalisées :
 Prochaine activité : lancer NestJS sur le port `3000` et appeler cette route avec
 deux messages partageant le même `threadId`, puis comparer avec un autre
 `threadId`.
+
+## Point 7 — Activer et comprendre le tracing LangSmith
+
+Statut : en cours.
+
+Objectif : observer une exécution réelle sans confondre observabilité et mémoire.
+
+- `threadId` et `MemorySaver` servent à retrouver l'état d'une conversation ;
+- LangSmith enregistre les traces, les appels de modèle, les outils, les durées et
+  les résultats ;
+- LangSmith ne fournit pas la mémoire de conversation de l'agent.
+
+Le tracing est désactivé par défaut dans `.env`. Pour l'activer localement, renseigner
+les variables suivantes sans transmettre la clé dans le dépôt ou dans le chat :
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=...
+LANGSMITH_PROJECT=orchestrator-ai
+LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com
+```
+
+La documentation officielle LangSmith confirme que ces variables configurent
+l'activation, la clé, le projet et l'endpoint du tracing : [Trace LangChain
+applications](https://docs.langchain.com/langsmith/trace-with-langchain).
+
+Après toute modification du `.env`, redémarrer le processus NestJS ou LangGraph,
+car les variables sont lues au démarrage.
+
+### Expérience 7.1 — Observer une trace complète
+
+1. activer le tracing dans `.env` ;
+2. relancer `npm run start:dev` ;
+3. appeler `POST /agent/invoke` avec `Calcule 12 + 30.` ;
+4. ouvrir le projet `orchestrator-ai` dans LangSmith ;
+5. observer la trace du run.
+
+La trace devrait permettre de distinguer :
+
+```text
+requête NestJS
+  └── agent
+        ├── middleware / routage
+        ├── appel du modèle
+        ├── add_numbers
+        └── réponse finale
+```
+
+Question de validation : si la trace LangSmith est supprimée, la mémoire du même
+`threadId` disparaît-elle également ?
+
+Réponse attendue : non. La trace est une information d'observabilité ; le checkpoint
+du thread est une donnée d'état distincte.
