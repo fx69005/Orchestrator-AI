@@ -887,3 +887,52 @@ La validation serveur a confirmé :
 Le `MemorySaver` du graphe explicite conserve donc l'état par `thread_id`. Les
 branches spécialisées peuvent réutiliser cet état sans posséder chacune leur propre
 mémoire.
+
+## Décision de parcours — graphe explicite reporté
+
+Statut : reporté.
+
+Le graphe `routingGraph` reste dans le dépôt comme laboratoire et comme exemple de
+`StateGraph`, mais il sort du parcours interactif immédiat. Les difficultés de
+Studio pour créer et sélectionner correctement un thread rendent cette étape trop
+coûteuse à poursuivre maintenant.
+
+Le parcours actif revient donc à l'intégration NestJS de l'agent `agent`. Le graphe
+explicite sera repris plus tard avec une expérience Studio dédiée et un protocole de
+test mieux préparé.
+
+## Point 6 — Intégrer proprement l'agent dans NestJS
+
+Statut : en cours.
+
+`AgentService` existait déjà comme adaptateur interne. Il est maintenant exposé par
+`AgentController` avec la route :
+
+```text
+POST /agent/invoke
+```
+
+Le corps attendu est :
+
+```json
+{
+  "message": "Calcule 12 + 30.",
+  "threadId": "conversation-a"
+}
+```
+
+Le contrôleur vérifie la présence des deux champs avant de déléguer à
+`AgentService.invoke(message, threadId)`. Le service reste responsable de l'appel
+LangChain et du mapping de `threadId` vers `configurable.thread_id`.
+
+Vérifications réalisées :
+
+- le contrôleur délègue une requête valide au service ;
+- les champs manquants produisent une erreur HTTP 400 ;
+- le test e2e NestJS confirme la route `POST /agent/invoke` avec un service simulé ;
+- 5 suites de tests passent, soit 16 tests ;
+- la compilation TypeScript et le lint passent.
+
+Prochaine activité : lancer NestJS sur le port `3000` et appeler cette route avec
+deux messages partageant le même `threadId`, puis comparer avec un autre
+`threadId`.
