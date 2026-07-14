@@ -1150,3 +1150,85 @@ npm run eval:langsmith
 
 Le runner ne crée pas de dataset et ne modifie pas l'agent. Il crée uniquement un
 experiment d'évaluation associé au dataset existant.
+
+## Point 8 — Supervisor financier et sous-graphes spécialisés
+
+Statut : implémenté pour la V1.
+
+Le projet contient maintenant un graphe financier séparé :
+
+```text
+Intent/Safety Classifier
+          ↓
+Financial Supervisor
+    ┌─────┼─────┐
+ Account Budget Investment
+    └─────┼─────┘
+   Response Generator
+```
+
+Le graphe est exposé dans `langgraph.json` sous l’identifiant `financialGraph`.
+L’API NestJS correspondante est `POST /agent/financial/invoke`, tandis que
+`POST /agent/invoke` et `routingGraph` restent disponibles pour les exercices
+précédents.
+
+La classification est déterministe et typée. La sécurité est évaluée avant le
+Supervisor : une demande non sûre est directement envoyée au Response Generator
+et aucun sous-graphe métier n’est appelé.
+
+Les sous-graphes financiers sont volontairement sans tools, MCP, appel de modèle
+ou données externes. Ils retournent des réponses simulées indiquant que les
+données financières ne sont pas encore connectées. Le graphe parent conserve le
+`MemorySaver`, mais les sous-graphes sont stateless pour cette première étape.
+
+Cas de validation :
+
+| Entrée                                   | Résultat attendu                           |
+| ---------------------------------------- | ------------------------------------------ |
+| `Quel est mon budget alimentation ?`     | `budget`                                   |
+| `Quelle est la performance de mon PEA ?` | `investment`                               |
+| demande de prompt injection              | `safe = false` et aucun sous-graphe métier |
+| `Raconte-moi une blague.`                | `out_of_scope`                             |
+
+## Point 9 — Safety Gate et Supervisor LangChain
+
+Statut : implémenté pour la V2.
+
+La V2 conserve LangGraph comme cadre de contrôle, puis utilise LangChain dans les
+parties qui bénéficient d’un LLM :
+
+```text
+policy_gate
+  ↓
+llm_safety_classifier
+  ├── unsafe / uncertain → safety_refusal
+  └── safe → financial_supervisor
+                    ├── Account subagent tool
+                    ├── Budget subagent tool
+                    └── Investment subagent tool
+  ↓
+post_response_guard
+```
+
+La politique locale bloque certaines demandes connues sans coût modèle. Les autres
+demandes passent par un Safety Classifier LLM qui retourne `safe`, `unsafe` ou
+`uncertain` selon un schéma Zod. Une erreur LLM est traitée comme `uncertain` : le
+Supervisor et les tools ne sont alors pas appelés.
+
+Le Financial Supervisor est un agent LangChain. Il peut appeler plusieurs
+sous-agents, une fois par domaine, et construit la réponse finale à partir de leurs
+résultats. Chaque sous-agent possède un seul tool mocké et ne reçoit qu’une question
+ciblée ; il ne partage pas l’historique complet de la conversation.
+
+La réponse HTTP conserve les champs V1 et ajoute :
+
+```ts
+type FinancialInvokeResponse = {
+  safetyDecision: 'safe' | 'unsafe' | 'uncertain';
+  delegatedAgents: ('account' | 'budget' | 'investment')[];
+};
+```
+
+Un évaluateur LangSmith distinct vérifie ce contrat V2. Le runner local utilise le
+dataset `orchestrator-ai-financial-v2` et la commande
+`npm run eval:langsmith:financial`.

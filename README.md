@@ -32,6 +32,31 @@ npm run langgraph:dev
 
 Le serveur local expose l’agent déclaré dans `langgraph.json`. L’interface Studio permet ensuite de converser avec lui et d’observer ses exécutions.
 
+## Orchestrateur financier V2
+
+Le graphe `financialGraph` combine LangGraph et LangChain :
+
+- politique de sécurité déterministe ;
+- classifieur Safety LLM structuré ;
+- Supervisor financier LangChain ;
+- sous-agents `account`, `budget` et `investment` appelés comme tools ;
+- tools de lecture mockés, sans MCP ni donnée financière réelle.
+
+Les montants retournés sont fixes et explicitement simulés. Une décision `unsafe` ou
+`uncertain` arrête le flux avant le Supervisor et les sous-agents.
+
+L’API correspondante est `POST /agent/financial/invoke` :
+
+```json
+{
+  "message": "Quel est mon budget alimentation ?",
+  "threadId": "thread-financial"
+}
+```
+
+Le graphe retourne notamment `intent`, `safe`, `safetyDecision`, `selectedAgent`,
+`delegatedAgents`, `response` et `messages`.
+
 ## LangSmith
 
 Le tracing est désactivé par défaut. Pour l’activer localement, renseigner dans `.env` :
@@ -53,4 +78,17 @@ npm test -- --runInBand
 npm run lint
 ```
 
-L’agent initial est volontairement créé avec `createAgent()` et aucun outil. Les nœuds LangGraph explicites seront introduits lorsque nous aurons besoin de contrôler précisément le routage.
+## Évaluation LangSmith du graphe financier
+
+Après avoir créé le dataset `orchestrator-ai-financial-v2` et démarré NestJS :
+
+```bash
+npm run eval:langsmith:financial
+```
+
+Le runner appelle `/agent/financial/invoke` et évalue la décision Safety, le domaine
+primaire, les sous-agents délégués et la réponse finale.
+
+L’agent initial créé avec `createAgent()` reste disponible pour les exercices de base.
+`routingGraph` et `financialGraph` montrent les deux formes de contrôle explicite
+avec LangGraph.

@@ -3,7 +3,8 @@
   "node_version": "24",
   "graphs": {
     "agent": "./src/agent/agent.ts:agent",
-    "routingGraph": "./src/agent/routing/routing.graph.ts:routingGraph"
+    "routingGraph": "./src/agent/routing/routing.graph.ts:routingGraph",
+    "financialGraph": "./src/agent/financial/financial.graph.ts:financialGraph"
   },
   "env": ".env"
 }
